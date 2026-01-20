@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Agent AI</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .chat-container { height: calc(100vh - 240px); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const Icon = ({ name, size = 16, className = "" }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, []);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        function App() {
+            const [messages, setMessages] = useState([
+                { role: 'assistant', content: 'Hello! I am your Sales Assistant. I can help you manage your customer knowledge graph. Ask me who to call, or use the "Add Fact" button to record new information!' }
+            ]);
+            const [input, setInput] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [factForm, setFactForm] = useState({ entity_name: '', relation: '', target_entity: '', additional_info: '' });
+            const scrollRef = useRef(null);
+
+            useEffect(() => {
+                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                if (window.lucide) window.lucide.createIcons();
+            }, [messages]);
+
+            const sendMessage = async (e) => {
+                if (e) e.preventDefault();
+                if (!input.trim() || isLoading) return;
+
+                const userMessage = { role: 'user', content: input };
+                setMessages(prev => [...prev, userMessage]);
+                setInput('');
+                setIsLoading(true);
+
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messages: [...messages, userMessage] })
+                    });
+                    const data = await response.json();
+                    setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+                } catch (error) {
+                    setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const addFact = async (e) => {
+                e.preventDefault();
+                setIsLoading(true);
+                try {
+                    const response = await fetch('/api/knowledge', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(factForm)
+                    });
+                    if (response.ok) {
+                        setMessages(prev => [...prev, { role: 'assistant', content: `Added new fact: ${factForm.entity_name} ${factForm.relation} ${factForm.target_entity}.` }]);
+                        setIsModalOpen(false);
+                        setFactForm({ entity_name: '', relation: '', target_entity: '', additional_info: '' });
+                    }
+                } catch (error) {
+                    console.error('Error adding fact:', error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const QuickAction = ({ icon, label, onClick }) => (
+                <button onClick={onClick} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-all text-xs font-medium text-slate-600 shadow-sm">
+                    <Icon name={icon} size={14} />
+                    {label}
+                </button>
+            );
+
+            return (
+                <div className="max-w-4xl mx-auto h-screen flex flex-col p-4 md:p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                                <Icon name="bot" size={24} />
+                            </div>
+                            <div>
+                                <h1 className="font-bold text-xl text-slate-800">SalesAgent AI</h1>
+                                <p className="text-xs text-slate-500 flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                    Knowledge Graph Active
+                                </p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => setIsModalOpen(true)}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-md"
+                        >
+                            <Icon name="plus" size={16} />
+                            Add Fact
+                        </button>
+                    </div>
+
+                    <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden">
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 chat-container scrollbar-hide">
+                            {messages.map((m, i) => (
+                                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`flex gap-3 max-w-[80%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${m.role === 'user' ? 'bg-slate-200' : 'bg-blue-100 text-blue-600'}`}>
+                                            <Icon name={m.role === 'user' ? 'user' : 'bot'} size={16} />
+                                        </div>
+                                        <div className={`p-3 rounded-2xl text-sm leading-relaxed ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800 shadow-sm'}`}>
+                                            {m.content.split('\n').map((line, i) => <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>)}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {isLoading && (
+                                <div className="flex justify-start">
+                                    <div className="flex gap-3 items-center text-slate-400 text-sm">
+                                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                                            <Icon name="loader-2" size={16} className="animate-spin text-blue-600" />
+                                        </div>
+                                        Processing...
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-3 border-t border-slate-100 bg-slate-50 flex flex-wrap gap-2">
+                            <QuickAction icon="calendar" label="Who should I call?" onClick={() => { setInput('Who should I reach out to today?'); }} />
+                            <QuickAction icon="users" label="List customers" onClick={() => { setInput('List all my customers'); }} />
+                            <QuickAction icon="search" label="Search knowledge" onClick={() => { setInput('Search knowledge graph for TechCorp'); }} />
+                            <QuickAction icon="message-square" label="Draft message" onClick={() => { setInput('Draft a message for Alice Johnson'); }} />
+                        </div>
+
+                        <form onSubmit={sendMessage} className="p-4 bg-white border-t border-slate-100 flex gap-2">
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                placeholder="Ask about customers or facts..."
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                            />
+                            <button type="submit" disabled={isLoading || !input.trim()} className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all">
+                                <Icon name="send" size={20} />
+                            </button>
+                        </form>
+                    </div>
+
+                    {isModalOpen && (
+                        <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold text-slate-800">Add Fact to Graph</h2>
+                                    <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                        <Icon name="x" size={24} />
+                                    </button>
+                                </div>
+                                <form onSubmit={addFact} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Subject (Entity)</label>
+                                        <input required value={factForm.entity_name} onChange={e => setFactForm({...factForm, entity_name: e.target.value})} placeholder="e.g. Alice Johnson" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Relation</label>
+                                        <input required value={factForm.relation} onChange={e => setFactForm({...factForm, relation: e.target.value})} placeholder="e.g. prefers" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Object (Target)</label>
+                                        <input required value={factForm.target_entity} onChange={e => setFactForm({...factForm, target_entity: e.target.value})} placeholder="e.g. Slack" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Additional Info</label>
+                                        <textarea value={factForm.additional_info} onChange={e => setFactForm({...factForm, additional_info: e.target.value})} placeholder="Any extra context..." className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none h-20" />
+                                    </div>
+                                    <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2">
+                                        {isLoading ? <Icon name="loader-2" size={18} className="animate-spin" /> : <Icon name="check" size={18} />}
+                                        Save to Knowledge Graph
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

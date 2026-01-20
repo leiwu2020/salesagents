@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Database
+*.db
+
+# Node (leftovers)
+node_modules/
+.next/
+dist/
+build/
+
+# OS
+.DS_Store
