@@ -3,3 +3,6 @@ uvicorn
 openai
 pydantic
 python-dotenv
+passlib
+python-jose[cryptography]
+python-multipart

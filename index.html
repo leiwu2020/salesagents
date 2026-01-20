@@ -12,7 +12,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
-        .chat-container { height: calc(100vh - 240px); }
+        .chat-container { height: calc(100vh - 280px); }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
     </style>
@@ -24,7 +24,6 @@
         const { useState, useEffect, useRef } = React;
 
         const Icon = ({ name, size = 16, className = "" }) => {
-            const iconRef = useRef(null);
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
             }, []);
@@ -32,6 +31,12 @@
         };
 
         function App() {
+            const [token, setToken] = useState(localStorage.getItem('token') || '');
+            const [user, setUser] = useState(null);
+            const [isRegistering, setIsRegistering] = useState(false);
+            const [authForm, setAuthForm] = useState({ username: '', password: '' });
+            const [authError, setAuthError] = useState('');
+
             const [messages, setMessages] = useState([
                 { role: 'assistant', content: 'Hello! I am your Sales Assistant. I can help you manage your customer knowledge graph. Ask me who to call, or use the "Add Fact" button to record new information!' }
             ]);
@@ -42,9 +47,79 @@
             const scrollRef = useRef(null);
 
             useEffect(() => {
+                if (token) {
+                    fetchUser();
+                }
+            }, [token]);
+
+            useEffect(() => {
                 if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
                 if (window.lucide) window.lucide.createIcons();
-            }, [messages]);
+            }, [messages, user]);
+
+            const fetchUser = async () => {
+                try {
+                    const response = await fetch('/api/me', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        setUser(data);
+                    } else {
+                        handleLogout();
+                    }
+                } catch (e) {
+                    handleLogout();
+                }
+            };
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setIsLoading(true);
+                try {
+                    if (isRegistering) {
+                        const response = await fetch('/api/register', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(authForm)
+                        });
+                        if (response.ok) {
+                            setIsRegistering(false);
+                            setAuthError('Registration successful! Please login.');
+                        } else {
+                            const data = await response.json();
+                            setAuthError(data.detail || 'Registration failed');
+                        }
+                    } else {
+                        const formData = new FormData();
+                        formData.append('username', authForm.username);
+                        formData.append('password', authForm.password);
+                        const response = await fetch('/api/login', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            localStorage.setItem('token', data.access_token);
+                            setToken(data.access_token);
+                        } else {
+                            setAuthError('Invalid username or password');
+                        }
+                    }
+                } catch (e) {
+                    setAuthError('Authentication failed');
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem('token');
+                setToken('');
+                setUser(null);
+                setMessages([{ role: 'assistant', content: 'Hello! I am your Sales Assistant. I can help you manage your customer knowledge graph. Ask me who to call, or use the "Add Fact" button to record new information!' }]);
+            };
 
             const sendMessage = async (e) => {
                 if (e) e.preventDefault();
@@ -58,7 +133,10 @@
                 try {
                     const response = await fetch('/api/chat', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
                         body: JSON.stringify({ messages: [...messages, userMessage] })
                     });
                     const data = await response.json();
@@ -76,7 +154,10 @@
                 try {
                     const response = await fetch('/api/knowledge', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
                         body: JSON.stringify(factForm)
                     });
                     if (response.ok) {
@@ -98,6 +179,45 @@
                 </button>
             );
 
+            if (!user) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+                        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+                            <div className="flex justify-center mb-6">
+                                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                                    <Icon name="bot" size={32} />
+                                </div>
+                            </div>
+                            <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">SalesAgent AI</h1>
+                            <p className="text-slate-500 text-center mb-8">{isRegistering ? 'Create your account' : 'Login to your assistant'}</p>
+                            
+                            <form onSubmit={handleAuth} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Username</label>
+                                    <input required value={authForm.username} onChange={e => setAuthForm({...authForm, username: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Password</label>
+                                    <input required type="password" value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" />
+                                </div>
+                                {authError && <p className="text-red-500 text-xs text-center">{authError}</p>}
+                                <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">
+                                    {isLoading ? 'Processing...' : (isRegistering ? 'Register' : 'Login')}
+                                </button>
+                            </form>
+                            
+                            <button onClick={() => {setIsRegistering(!isRegistering); setAuthError('');}} className="w-full mt-6 text-sm text-blue-600 hover:underline">
+                                {isRegistering ? 'Already have an account? Login' : 'Need an account? Register'}
+                            </button>
+                            
+                            <div className="mt-8 pt-6 border-t border-slate-100">
+                                <p className="text-xs text-slate-400 text-center">Try "demo" / "password123"</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
             return (
                 <div className="max-w-4xl mx-auto h-screen flex flex-col p-4 md:p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -108,18 +228,20 @@
                             <div>
                                 <h1 className="font-bold text-xl text-slate-800">SalesAgent AI</h1>
                                 <p className="text-xs text-slate-500 flex items-center gap-1">
-                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                    Knowledge Graph Active
+                                    <Icon name="user" size={10} className="text-blue-500" />
+                                    {user.username}
                                 </p>
                             </div>
                         </div>
-                        <button 
-                            onClick={() => setIsModalOpen(true)}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-md"
-                        >
-                            <Icon name="plus" size={16} />
-                            Add Fact
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsModalOpen(true)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-slate-50 transition-all">
+                                <Icon name="plus" size={16} />
+                                Add Fact
+                            </button>
+                            <button onClick={handleLogout} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-200 transition-all">
+                                Logout
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden">
@@ -152,7 +274,6 @@
                             <QuickAction icon="calendar" label="Who should I call?" onClick={() => { setInput('Who should I reach out to today?'); }} />
                             <QuickAction icon="users" label="List customers" onClick={() => { setInput('List all my customers'); }} />
                             <QuickAction icon="search" label="Search knowledge" onClick={() => { setInput('Search knowledge graph for TechCorp'); }} />
-                            <QuickAction icon="message-square" label="Draft message" onClick={() => { setInput('Draft a message for Alice Johnson'); }} />
                         </div>
 
                         <form onSubmit={sendMessage} className="p-4 bg-white border-t border-slate-100 flex gap-2">
