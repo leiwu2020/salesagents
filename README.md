@@ -2,6 +2,8 @@
 
 An AI-powered sales assistant that helps you manage your customers, identifies who to reach out to, and drafts personalized messages.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/leiwu2020/salesagents)
+
 ## Features
 
 - **Chat with Sales Assistant**: Ask questions about your customers and get instant answers.
