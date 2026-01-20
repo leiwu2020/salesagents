@@ -6,3 +6,5 @@ python-dotenv
 passlib
 python-jose[cryptography]
 python-multipart
+gunicorn
+uvicorn[standard]
