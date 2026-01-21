@@ -145,6 +145,14 @@ def query_knowledge_base(user_id: int, query: str):
                    (user_id, f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
     return [dict(row) for row in rows]
 
+def add_customer(user_id: int, name: str, email: str, company: str = "", status: str = "lead", notes: str = "", next_follow_up: str = None):
+    """Add a new customer to the database."""
+    new_id = execute_db('''
+        INSERT INTO customers (user_id, name, email, company, status, notes, next_follow_up, last_interaction)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, name, email, company, status, notes, next_follow_up, datetime.now().isoformat()))
+    return {"status": "success", "id": new_id, "message": f"Customer {name} added successfully."}
+
 # AI Tools Definition
 def get_tools_definition():
     return [
@@ -220,6 +228,25 @@ def get_tools_definition():
                         "query": {"type": "string", "description": "The search term"}
                     },
                     "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "add_customer",
+                "description": "Add a new customer to the database",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Customer name"},
+                        "email": {"type": "string", "description": "Customer email"},
+                        "company": {"type": "string", "description": "Company name"},
+                        "status": {"type": "string", "description": "Status (lead, active, churned)", "enum": ["lead", "active", "churned"]},
+                        "notes": {"type": "string", "description": "Initial notes about the customer"},
+                        "next_follow_up": {"type": "string", "description": "ISO date for next follow up (optional)"}
+                    },
+                    "required": ["name", "email"]
                 }
             }
         }
@@ -321,6 +348,16 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
                 )
             elif function_name == "query_knowledge_base":
                 content = query_knowledge_base(user_id, function_args.get("query"))
+            elif function_name == "add_customer":
+                content = add_customer(
+                    user_id,
+                    function_args.get("name"),
+                    function_args.get("email"),
+                    function_args.get("company", ""),
+                    function_args.get("status", "lead"),
+                    function_args.get("notes", ""),
+                    function_args.get("next_follow_up")
+                )
             else:
                 content = {"error": "Unknown function"}
 
