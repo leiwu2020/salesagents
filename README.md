@@ -43,3 +43,12 @@ An AI-powered sales assistant that helps you manage your customers, identifies w
 - **Frontend**: React, Tailwind CSS, Lucide Icons (CDN)
 - **Database**: SQLite
 - **AI**: OpenAI GPT-4 with Tool Calling
+
+## Admin: User Approval
+
+Newly registered users are **pending approval** by default. To approve a user, you can send a POST request to the following endpoint:
+
+`POST /api/admin/approve/{username}?admin_key=your_admin_key`
+
+- Default `admin_key`: `adam-secret-key-2026` (You can change this in Render Environment Variables as `ADMIN_KEY`)
+- You can use tools like `curl` or Postman to trigger this.
