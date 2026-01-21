@@ -234,8 +234,13 @@ async def register(req: RegisterRequest):
         raise throw_error
     
     hashed_password = get_password_hash(req.password)
-    execute_db("INSERT INTO users (username, hashed_password) VALUES (?, ?)", (req.username, hashed_password))
-    return {"status": "success", "message": "User created"}
+    execute_db("INSERT INTO users (username, hashed_password, is_approved) VALUES (?, ?, ?)", (req.username, hashed_password, 0))
+    
+    # Send registration info for approval (Logging to console for now)
+    # In production, replace this with an actual email service like SendGrid or SES
+    print(f"NOTIFICATION: New registration for '{req.username}'. Approval request sent to adamresearch28@gmail.com")
+    
+    return {"status": "success", "message": "Registration submitted. Waiting for approval."}
 
 @app.post("/api/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -246,6 +251,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    if not user["is_approved"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending approval. Please contact administrator.",
+        )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["username"]}, expires_delta=access_token_expires
@@ -341,6 +353,19 @@ async def api_add_knowledge(request: KnowledgeRequest, current_user: dict = Depe
 @app.get("/api/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+@app.post("/api/admin/approve/{username}")
+async def approve_user(username: str, admin_key: str):
+    # This is a simple security check. In production, use a more robust method.
+    if admin_key != os.getenv("ADMIN_KEY", "adam-secret-key-2026"):
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+    
+    user = query_db("SELECT id FROM users WHERE username = ?", (username,), one=True)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    execute_db("UPDATE users SET is_approved = 1 WHERE username = ?", (username,))
+    return {"status": "success", "message": f"User {username} has been approved."}
 
 # Static Routes
 @app.get("/", response_class=HTMLResponse)

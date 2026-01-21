@@ -86,7 +86,7 @@
                         });
                         if (response.ok) {
                             setIsRegistering(false);
-                            setAuthError('Registration successful! Please login.');
+                            setAuthError('Registration submitted! Please wait for approval from adamresearch28@gmail.com.');
                         } else {
                             const data = await response.json();
                             setAuthError(data.detail || 'Registration failed');
@@ -104,7 +104,8 @@
                             localStorage.setItem('token', data.access_token);
                             setToken(data.access_token);
                         } else {
-                            setAuthError('Invalid username or password');
+                            const data = await response.json();
+                            setAuthError(data.detail || 'Invalid username or password');
                         }
                     }
                 } catch (e) {

@@ -11,6 +11,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         hashed_password TEXT NOT NULL,
+        is_approved INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
     ''')
@@ -51,7 +52,7 @@ def init_db():
     if cursor.fetchone()[0] == 0:
         # Password is 'password123' (pbkdf2_sha256)
         hashed_pw = "$pbkdf2-sha256$29000$yRljzJkzRgihtPYeo7RWSg$wE9CC1i.Gb5kQh7iK9CWcqPDq1coQDXwQO1XFA65GDc"
-        cursor.execute('INSERT INTO users (username, hashed_password) VALUES (?, ?)', ('demo', hashed_pw))
+        cursor.execute('INSERT INTO users (username, hashed_password, is_approved) VALUES (?, ?, ?)', ('demo', hashed_pw, 1))
     
     # Get the user id
     cursor.execute('SELECT id FROM users WHERE username = ?', ('demo',))
