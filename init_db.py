@@ -50,7 +50,7 @@ def init_db():
     cursor.execute('SELECT COUNT(*) FROM users')
     if cursor.fetchone()[0] == 0:
         # Password is 'password123' (pbkdf2_sha256)
-        hashed_pw = "$pbkdf2-sha256$29000$rTXm3DtnrLU2BuAcA2DMeQ$UoNETCG4zc5Wa0OCmlKCiDLMBTHB8cAn9CXBJfx4vG8"
+        hashed_pw = "$pbkdf2-sha256$29000$yRljzJkzRgihtPYeo7RWSg$wE9CC1i.Gb5kQh7iK9CWcqPDq1coQDXwQO1XFA65GDc"
         cursor.execute('INSERT INTO users (username, hashed_password) VALUES (?, ?)', ('demo', hashed_pw))
     
     # Get the user id
