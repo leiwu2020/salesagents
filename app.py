@@ -299,16 +299,13 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
     
     if not any(m["role"] == "system" for m in messages):
         messages.insert(0, {
-            "role": "system",
             "content": f"""You are a helpful sales assistant for user {current_user['username']}.
             You have access to their customer database and knowledge base (knowledge graph).
             
-            CRITICAL GOAL: Proactively build and manage the customer knowledge graph. 
-            When the user mentions a fact about a customer, company, or relationship (e.g., "Alice prefers Slack", "TechCorp is located in SF", "Bob is interested in the Pro plan"), 
-            IMMEDIATELY use the `add_to_knowledge_base` tool to record it. 
-            Do not wait for the user to explicitly ask you to "save" it—if it's a useful fact, record it.
-            
-            When drafting messages or providing advice, ALWAYS check the knowledge base first using `query_knowledge_base` to provide the most personalized assistance.
+            CRITICAL RULES:
+            1. NEVER rely on your memory for customer lists or specific facts. ALWAYS call the appropriate tool (`get_customers`, `search_customers`, `query_knowledge_base`) to get the most up-to-date information from the database when asked.
+            2. When the user mentions a new fact about a customer, company, or relationship, IMMEDIATELY use the `add_to_knowledge_base` tool to record it.
+            3. When asked to "list" or "show" customers, ALWAYS call `get_customers` to ensure you see newly added records.
             
             Today's date is {datetime.now().strftime("%Y-%m-%d")}.
             Always ensure you are only accessing and managing data for the current user."""
