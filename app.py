@@ -294,84 +294,98 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 # Protected Chat and Knowledge Routes
 @app.post("/api/chat")
 async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
-    messages = request.messages
-    user_id = current_user["id"]
-    
-    if not any(m["role"] == "system" for m in messages):
-        messages.insert(0, {
-            "content": f"""You are a helpful sales assistant for user {current_user['username']}.
-            You have access to their customer database and knowledge base (knowledge graph).
-            
-            CRITICAL RULES:
-            1. NEVER rely on your memory for customer lists or specific facts. ALWAYS call the appropriate tool (`get_customers`, `search_customers`, `query_knowledge_base`) to get the most up-to-date information from the database when asked.
-            2. When the user mentions a new fact about a customer, company, or relationship, IMMEDIATELY use the `add_to_knowledge_base` tool to record it.
-            3. When asked to "list" or "show" customers, ALWAYS call `get_customers` to ensure you see newly added records.
-            
-            Today's date is {datetime.now().strftime("%Y-%m-%d")}.
-            Always ensure you are only accessing and managing data for the current user."""
-        })
-
-    response = client.chat.completions.create(
-        model="gpt-4-turbo-preview",
-        messages=messages,
-        tools=get_tools_definition(),
-        tool_choice="auto"
-    )
-
-    response_message = response.choices[0].message
-    tool_calls = response_message.tool_calls
-
-    if tool_calls:
-        messages.append(response_message)
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            function_args = json.loads(tool_call.function.arguments)
-            
-            if function_name == "get_customers":
-                content = get_customers(user_id)
-            elif function_name == "search_customers":
-                content = search_customers(user_id, function_args.get("query"))
-            elif function_name == "get_urgent_follow_ups":
-                content = get_urgent_follow_ups(user_id)
-            elif function_name == "get_customer_details":
-                content = get_customer_details(user_id, function_args.get("customer_id"))
-            elif function_name == "add_to_knowledge_base":
-                content = add_to_knowledge_base(
-                    user_id,
-                    function_args.get("entity_name"),
-                    function_args.get("relation"),
-                    function_args.get("target_entity"),
-                    function_args.get("additional_info", "")
-                )
-            elif function_name == "query_knowledge_base":
-                content = query_knowledge_base(user_id, function_args.get("query"))
-            elif function_name == "add_customer":
-                content = add_customer(
-                    user_id,
-                    function_args.get("name"),
-                    function_args.get("email"),
-                    function_args.get("company", ""),
-                    function_args.get("status", "lead"),
-                    function_args.get("notes", ""),
-                    function_args.get("next_follow_up")
-                )
-            else:
-                content = {"error": "Unknown function"}
-
-            messages.append({
-                "tool_call_id": tool_call.id,
-                "role": "tool",
-                "name": function_name,
-                "content": json.dumps(content)
-            })
+    try:
+        messages = request.messages
+        user_id = current_user["id"]
         
-        final_response = client.chat.completions.create(
+        if not any(m["role"] == "system" for m in messages):
+            messages.insert(0, {
+                "role": "system",
+                "content": f"""You are a helpful sales assistant for user {current_user['username']}.
+                You have access to their customer database and knowledge base (knowledge graph).
+                
+                CRITICAL RULES:
+                1. NEVER rely on your memory for customer lists or specific facts. ALWAYS call the appropriate tool (`get_customers`, `search_customers`, `query_knowledge_base`) to get the most up-to-date information from the database when asked.
+                2. When the user mentions a new fact about a customer, company, or relationship, IMMEDIATELY use the `add_to_knowledge_base` tool to record it.
+                3. When asked to "list" or "show" customers, ALWAYS call `get_customers` to ensure you see newly added records.
+                
+                Today's date is {datetime.now().strftime("%Y-%m-%d")}.
+                Always ensure you are only accessing and managing data for the current user."""
+            })
+
+        response = client.chat.completions.create(
             model="gpt-4-turbo-preview",
-            messages=messages
+            messages=messages,
+            tools=get_tools_definition(),
+            tool_choice="auto"
         )
-        return JSONResponse(content={"message": final_response.choices[0].message.content})
-    
-    return JSONResponse(content={"message": response_message.content})
+
+        response_message = response.choices[0].message
+        tool_calls = response_message.tool_calls
+
+        if tool_calls:
+            # Convert response_message to dict for the next request
+            messages.append(response_message.model_dump(exclude_none=True))
+            
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                print(f"Executing tool: {function_name} with args: {function_args}")
+                
+                if function_name == "get_customers":
+                    content = get_customers(user_id)
+                elif function_name == "search_customers":
+                    content = search_customers(user_id, function_args.get("query"))
+                elif function_name == "get_urgent_follow_ups":
+                    content = get_urgent_follow_ups(user_id)
+                elif function_name == "get_customer_details":
+                    content = get_customer_details(user_id, function_args.get("customer_id"))
+                elif function_name == "add_to_knowledge_base":
+                    content = add_to_knowledge_base(
+                        user_id,
+                        function_args.get("entity_name"),
+                        function_args.get("relation"),
+                        function_args.get("target_entity"),
+                        function_args.get("additional_info", "")
+                    )
+                elif function_name == "query_knowledge_base":
+                    content = query_knowledge_base(user_id, function_args.get("query"))
+                elif function_name == "add_customer":
+                    content = add_customer(
+                        user_id,
+                        function_args.get("name"),
+                        function_args.get("email"),
+                        function_args.get("company", ""),
+                        function_args.get("status", "lead"),
+                        function_args.get("notes", ""),
+                        function_args.get("next_follow_up")
+                    )
+                else:
+                    content = {"error": "Unknown function"}
+
+                messages.append({
+                    "tool_call_id": tool_call.id,
+                    "role": "tool",
+                    "name": function_name,
+                    "content": json.dumps(content)
+                })
+            
+            final_response = client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=messages
+            )
+            return JSONResponse(content={"message": final_response.choices[0].message.content})
+        
+        return JSONResponse(content={"message": response_message.content})
+    except Exception as e:
+        print(f"CHAT ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"message": f"I'm sorry, I encountered an internal error: {str(e)}. Please check the logs."}
+        )
 
 @app.post("/api/knowledge")
 async def api_add_knowledge(request: KnowledgeRequest, current_user: dict = Depends(get_current_user)):
