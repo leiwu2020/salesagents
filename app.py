@@ -11,6 +11,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+from init_db import init_db
 
 load_dotenv()
 
@@ -24,6 +25,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
 
 app = FastAPI()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()
 
 # Models
 class User(BaseModel):
