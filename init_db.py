@@ -47,14 +47,18 @@ def init_db():
     )
     ''')
     
-    # Insert mock user if empty
-    cursor.execute('SELECT COUNT(*) FROM users')
-    if cursor.fetchone()[0] == 0:
-        # Password is 'password123' (pbkdf2_sha256)
-        hashed_pw = "$pbkdf2-sha256$29000$yRljzJkzRgihtPYeo7RWSg$wE9CC1i.Gb5kQh7iK9CWcqPDq1coQDXwQO1XFA65GDc"
-        cursor.execute('INSERT INTO users (username, hashed_password, is_approved) VALUES (?, ?, ?)', ('demo', hashed_pw, 1))
+    # Insert mock users if they don't exist
+    users_to_add = [
+        ('demo', "$pbkdf2-sha256$29000$yRljzJkzRgihtPYeo7RWSg$wE9CC1i.Gb5kQh7iK9CWcqPDq1coQDXwQO1XFA65GDc"),
+        ('test', "$pbkdf2-sha256$29000$aO29FyKEMKZ0bq0VIkRISQ$JpG.qe79thrGfpCwOKmFNNlYxmuLmdMrjusry106DVM")
+    ]
     
-    # Get the user id
+    for username, hashed_pw in users_to_add:
+        cursor.execute('SELECT COUNT(*) FROM users WHERE username = ?', (username,))
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('INSERT INTO users (username, hashed_password, is_approved) VALUES (?, ?, ?)', (username, hashed_pw, 1))
+    
+    # Get the demo user id for mock data
     cursor.execute('SELECT id FROM users WHERE username = ?', ('demo',))
     user_id = cursor.fetchone()[0]
 
